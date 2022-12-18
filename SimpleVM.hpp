@@ -4,58 +4,242 @@
 #include <array>
 #include <vector>
 #include <iostream>
+#include <map>
+#include <stack>
+#include <memory.h>
 #include "SimpleInst.hpp"
 
 namespace svm
 {
+    /// @brief 虚拟机状态
+    struct VMState
+    {
+        /// @brief 通用寄存器
+        std::array<DWORD, RegisterEnum::GeneralRegister::GRCOUNT> general_registers;
+        /// @brief 标志寄存器
+        std::array<bool, RegisterEnum::StatusRegister::SRCOUNT> status_registers;
+        /// @brief 虚拟机异常状态
+        ExceptionEnum::Exception exception = ExceptionEnum::Exception::AOK;
+        /// @brief 虚拟机是否正在运行
+        bool is_running = false;
+
+        /// @brief 构造函数
+        VMState() {}
+
+        /// @brief 构造函数
+        /// @param from 要被赋予的值
+        VMState(const VMState &from) { operator=(from); }
+
+        ~VMState() {}
+
+        /// @brief 构造函数
+        /// @param from 要被赋予的值
+        /// @return 自身
+        VMState &operator=(const VMState &from)
+        {
+            general_registers = from.general_registers;
+            status_registers = from.status_registers;
+            exception = from.exception;
+            is_running = from.is_running;
+            return *this;
+        }
+    };
+
+    /// @brief 程序的数据
+    struct ProgramData
+    {
+        /// @brief 程序的指令（text段）
+        std::vector<Instruction> instructions;
+        /// @brief 程序的数据段（data段和bss段）
+        std::vector<DWORD> data;
+        /// @brief 当前正在执行的指令的索引值
+        size_t current_instruction_index;
+
+        /// @brief 构造函数
+        /// @param insts 指令
+        /// @param datas 数据
+        ProgramData(std::vector<Instruction> insts = std::vector<Instruction>(), std::vector<DWORD> datas = std::vector<DWORD>()) : instructions(insts), data(datas), current_instruction_index(0) {}
+
+        /// @brief 构造函数
+        /// @param from 要被赋予的值
+        ProgramData(const ProgramData &from) { operator=(from); }
+
+        ~ProgramData() {}
+
+        /// @brief 赋值函数
+        /// @param from 要被赋予的值
+        /// @return 自身
+        ProgramData &operator=(const ProgramData &from)
+        {
+            instructions = from.instructions;
+            data = from.data;
+            current_instruction_index = from.current_instruction_index;
+            return *this;
+        }
+    };
+
+    /// @brief 内存数据
+    /// @tparam m_total_capacity 内存总容量，默认是8KB。
+    /// @tparam m_data_capacity 程序数据容量，默认1KB。
+    /// @tparam m_stack_capacity 栈总容量，默认是1KB。
+    /// @tparam m_heap_capacity 堆总容量，默认6KB。
+    template <size_t m_total_capacity = 1024, size_t m_data_capacity = 128, size_t m_stack_capacity = 128, size_t m_heap_capacity = 768>
+    class InternalStorageData
+    {
+    public:
+        /// @brief 内存总容量，默认是8KB。
+        static const size_t TOTAL_CAPACITY = m_total_capacity;
+        /// @brief 程序数据容量，默认1KB。
+        static const size_t DATA_CAPACITY = m_data_capacity;
+        /// @brief 栈总容量，默认是1KB。
+        static const size_t STACK_CAPACITY = m_stack_capacity;
+        /// @brief 堆总容量，默认6KB。
+        static const size_t HEAP_CAPACITY = m_heap_capacity;
+
+        /// @brief 数据段的起始位置
+        static const size_t DATA_SECTION_BEGINNING = 0;
+        /// @brief 栈的起始位置
+        static const size_t STACK_SECTION_BEGINNING = DATA_SECTION_BEGINNING + DATA_CAPACITY;
+        /// @brief 堆的起始位置
+        static const size_t HEAP_SECTION_BEGINNING = STACK_SECTION_BEGINNING + STACK_CAPACITY;
+
+        /// @brief 自身类型
+        using SelfType = InternalStorageData<TOTAL_CAPACITY, DATA_CAPACITY, STACK_CAPACITY, HEAP_CAPACITY>;
+
+    private:
+        /// @brief 虚拟机内存，不够可以加。默认是8KB。
+        std::array<DWORD, TOTAL_CAPACITY> m_internal_storage;
+        size_t m_stack_top = 0;
+
+    public:
+        /// @brief 构造函数
+        InternalStorageData() {}
+
+        /// @brief 构造函数
+        /// @param from 要被赋予的值
+        InternalStorageData(const SelfType &from) { operator=(from); }
+
+        ~InternalStorageData() {}
+
+    public:
+        /// @brief 赋值函数
+        /// @param from 要被赋予的值
+        /// @return 自身
+        SelfType &operator=(const SelfType &from)
+        {
+            m_internal_storage = from.m_internal_storage;
+            m_stack_top = from.m_stack_top;
+            return *this;
+        }
+
+    public:
+        /// @brief 获取虚拟机内存引用
+        /// @return 虚拟机内存的引用
+        std::array<DWORD, TOTAL_CAPACITY> &get_internal_storage()
+        {
+            return m_internal_storage;
+        }
+
+        /// @brief 获取虚拟机栈顶引用
+        /// @return 虚拟机栈顶的引用
+        size_t &get_stack_top()
+        {
+            return m_stack_top;
+        }
+
+    public:
+        /// @brief 访问虚拟机内存
+        /// @param pointer 指向虚拟机内存的指针（其实是m_internal_storage的索引）
+        /// @return 指针
+        DWORD *access(size_t pointer)
+        {
+            return &m_internal_storage.at(pointer);
+        }
+
+        /// @brief 入栈
+        /// @param value 要入栈的值
+        /// @return 是否成功（是否超出边界）
+        bool push(DWORD value)
+        {
+            if (m_stack_top < STACK_CAPACITY - 1)
+            {
+                m_stack_top++;
+                m_internal_storage.at(STACK_SECTION_BEGINNING + m_stack_top) = value;
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        /// @brief 出栈
+        /// @param result 结果
+        /// @return 是否成功（是否超出边界）
+        bool pop(DWORD &result)
+        {
+            if (m_stack_top > 0)
+            {
+                result = m_internal_storage.at(STACK_SECTION_BEGINNING + m_stack_top);
+                m_stack_top--;
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+    };
+
     /// @brief 简单的虚拟机类
     class SimpleVM
     {
+    public:
+        using ISData = InternalStorageData<>;
+
     private:
-        /// @brief 通用寄存器
-        std::array<DWORD, RegisterEnum::GeneralRegister::GRCOUNT> m_general_registers;
-        /// @brief 标志寄存器
-        std::array<bool, RegisterEnum::StatusRegister::SRCOUNT> m_status_registers;
-        /// @brief 程序的指令
-        std::vector<Instruction> m_instructions;
-        /// @brief 当前正在执行的指令的索引值
-        size_t m_current_instruction_index;
-        /// @brief 虚拟机异常状态
-        ExceptionEnum::Exception m_exception;
-        /// @brief 虚拟机是否正在运行
-        bool m_is_running;
+        /// @brief 虚拟机的状态
+        VMState m_vm_state;
+        /// @brief 要运行的程序
+        ProgramData m_program_data;
+        /// @brief 程序运行时的数据
+        ISData m_internal_storage_data;
 
     public:
-        SimpleVM() { reset(); }
+        SimpleVM()
+        {
+            // 相当于初始化
+            reset();
+        }
         ~SimpleVM() {}
 
     public:
         /// @brief 加载程序
-        virtual void load_program(std::vector<Instruction> program)
+        virtual void load_program(const ProgramData &program_data)
         {
-            m_instructions = program;
+            m_program_data = program_data;
+            memcpy_s(m_internal_storage_data.access(0), m_internal_storage_data.DATA_CAPACITY * sizeof(DWORD), program_data.data.data(), program_data.data.size() * sizeof(DWORD));
         }
 
     public:
         /// @brief 运行虚拟机
         virtual void run()
         {
-            m_is_running = true;
+            m_vm_state.is_running = true;
 
             // 当异常状态处于AOK时运行虚拟机
-            while (m_exception == ExceptionEnum::Exception::AOK && m_is_running)
+            while (m_vm_state.exception == ExceptionEnum::Exception::AOK && m_vm_state.is_running)
             { // 判断当前指令索引是否越界
-                if (m_current_instruction_index >= m_instructions.size())
+                if (m_program_data.current_instruction_index >= m_program_data.instructions.size())
                 {
                     // 越界时触发ADR异常
                     exception_adr();
                     break;
                 }
 
-                execute(m_instructions.at(m_current_instruction_index));
-                m_current_instruction_index++;
+                execute(m_program_data.instructions.at(m_program_data.current_instruction_index));
+                m_program_data.current_instruction_index++;
             }
-            exception();
         }
 
         /// @brief 执行一条指令
@@ -91,11 +275,11 @@ namespace svm
             switch (inst.command)
             {
             case CommandEnum::Command::MOVRI:
-                m_general_registers.at(inst.register1) = inst.operand1;
+                m_vm_state.general_registers.at(inst.register1) = inst.operand1;
                 break;
 
             case CommandEnum::Command::MOVRR:
-                m_general_registers.at(inst.register1) = m_general_registers.at(inst.register2);
+                m_vm_state.general_registers.at(inst.register1) = m_vm_state.general_registers.at(inst.register2);
                 break;
 
             default:
@@ -108,17 +292,131 @@ namespace svm
         /// @return 如果系统调用已经被处理完，则返回true，否则返回false。当传递到execute()时如果仍然为false，则发出INS异常。
         virtual bool system_call()
         {
-            long value = m_general_registers.at(RegisterEnum::GeneralRegister::AX);
-            if (value != 0)
+            unsigned long &ax = m_vm_state.general_registers.at(RegisterEnum::GeneralRegister::AX);
+            unsigned long &bx = m_vm_state.general_registers.at(RegisterEnum::GeneralRegister::BX);
+            unsigned long &cx = m_vm_state.general_registers.at(RegisterEnum::GeneralRegister::CX);
+            unsigned long &dx = m_vm_state.general_registers.at(RegisterEnum::GeneralRegister::DX);
+
+            switch (ax)
             {
-                std::cout << value << std::endl;
-                return true;
-            }
-            else
-            {
-                exception_ins();
+            case CommandEnum::SystemCallNumber::PRINT_CHAR:
+            case CommandEnum::SystemCallNumber::PRINT_STRING:
+                syscall_print(ax, bx, cx, dx);
+                break;
+
+            case CommandEnum::SystemCallNumber::SCAN_CHAR:
+            case CommandEnum::SystemCallNumber::SCAN_STRING:
+                syscall_scan(ax, bx, cx, dx);
+                break;
+
+            case CommandEnum::SystemCallNumber::EXIT:
+                syscall_exit(bx);
+                break;
+
+            default:
                 return false;
+                break;
             }
+
+            return true;
+        }
+
+        /// @brief 系统调用的PRINT类调用
+        /// @param ax AX寄存器的引用
+        /// @param bx BX寄存器的引用
+        /// @param cx CX寄存器的引用
+        /// @param dx DX寄存器的引用
+        virtual void syscall_print(unsigned long &ax, unsigned long &bx, unsigned long &cx, unsigned long &dx)
+        {
+            switch (ax)
+            {
+            case CommandEnum::SystemCallNumber::PRINT_CHAR:
+                switch (bx)
+                {
+                case CommandEnum::SystemEnum::STDIO:
+                    std::cout << static_cast<unsigned char>(cx);
+                    break;
+                case CommandEnum::SystemEnum::FILE:
+                    break;
+                default:
+                    exception_ins();
+                    break;
+                }
+                break;
+
+            case CommandEnum::SystemCallNumber::PRINT_STRING:
+                switch (bx)
+                {
+                case CommandEnum::SystemEnum::STDIO:
+                    for (DWORD *ptr = &m_program_data.data.at(cx); *ptr != '\0'; ptr++)
+                    {
+                        std::cout << static_cast<unsigned char>(*ptr);
+                    }
+                    break;
+                case CommandEnum::SystemEnum::FILE:
+                    break;
+                default:
+                    exception_ins();
+                    break;
+                }
+                break;
+
+            default:
+                exception_ins();
+                break;
+            }
+        }
+
+        /// @brief 系统调用的SCAN类调用
+        /// @param ax AX寄存器的引用
+        /// @param bx BX寄存器的引用
+        /// @param cx CX寄存器的引用
+        /// @param dx DX寄存器的引用
+        virtual void syscall_scan(unsigned long &ax, unsigned long &bx, unsigned long &cx, unsigned long &dx)
+        {
+            switch (ax)
+            {
+            case CommandEnum::SystemCallNumber::PRINT_CHAR:
+                switch (bx)
+                {
+                case CommandEnum::SystemEnum::STDIO:
+                    std::cout << static_cast<unsigned char>(cx);
+                    break;
+                case CommandEnum::SystemEnum::FILE:
+                    break;
+                default:
+                    exception_ins();
+                    break;
+                }
+                break;
+
+            default:
+                exception_ins();
+                break;
+            }
+        }
+
+        virtual void syscall_exit(unsigned long bx)
+        {
+            switch (bx)
+            {
+            case CommandEnum::SystemEnum::SUCCESS:
+                print_split_line();
+                std::cout << "Program finished successfully" << std::endl;
+                break;
+
+            case CommandEnum::SystemEnum::FAILURE:
+                print_split_line();
+                std::cout << "Program finish failed" << std::endl;
+                break;
+
+            default:
+                print_split_line();
+                std::cout << "Program finished with code:" << bx << std::endl;
+                break;
+            }
+
+            m_vm_state.is_running = false;
         }
 
         /// @brief 当发生异常时调用
@@ -128,7 +426,7 @@ namespace svm
             print_split_line();
 
             // 输出异常名
-            switch (m_exception)
+            switch (m_vm_state.exception)
             {
                 // 即使状态为AOK也会继续停止虚拟机
                 // 但是会输出一条错误消息
@@ -149,99 +447,78 @@ namespace svm
                 break;
 
             default:
-                std::cout << "Unknown exception:" << m_exception << std::endl;
+                std::cout << "Unknown exception:" << m_vm_state.exception << std::endl;
                 break;
             }
 
             // 输出发生异常的指令索引
             // 由于总是会向后一条，所以实际得减1
-            std::cout << "when:" << m_current_instruction_index << std::endl;
+            std::cout << "when:" << m_program_data.current_instruction_index << std::endl;
             // 中止虚拟机运行
-            m_is_running = false;
+            m_vm_state.is_running = false;
             std::cout << "VM aborted" << std::endl;
         }
 
         /// @brief 重置虚拟机的所有状态和指令
         virtual void reset()
         {
-            m_general_registers = std::array<DWORD, RegisterEnum::GeneralRegister::GRCOUNT>();
-            m_status_registers = std::array<bool, RegisterEnum::StatusRegister::SRCOUNT>();
-            m_instructions = std::vector<Instruction>();
-            m_current_instruction_index = 0;
-            exception_aok();
-            m_is_running = false;
+            m_vm_state = VMState();
+            m_program_data = ProgramData();
+            m_internal_storage_data = ISData();
         }
 
     public:
         /// @brief 触发HLT异常
         virtual void exception_hlt()
         {
-            m_exception = ExceptionEnum::Exception::HLT;
-            m_is_running = false;
+            m_vm_state.exception = ExceptionEnum::Exception::HLT;
+            m_vm_state.is_running = false;
+            exception();
         }
 
         /// @brief 触发ADR异常
         virtual void exception_adr()
         {
-            m_exception = ExceptionEnum::Exception::ADR;
-            m_is_running = false;
+            m_vm_state.exception = ExceptionEnum::Exception::ADR;
+            m_vm_state.is_running = false;
+            exception();
         }
 
         /// @brief 触发INS异常
         virtual void exception_ins()
         {
-            m_exception = ExceptionEnum::Exception::INS;
-            m_is_running = false;
+            m_vm_state.exception = ExceptionEnum::Exception::INS;
+            m_vm_state.is_running = false;
+            exception();
         }
 
         /// @brief 取消异常
         virtual void exception_aok()
         {
-            m_exception = ExceptionEnum::Exception::AOK;
-            m_is_running = false;
+            m_vm_state.exception = ExceptionEnum::Exception::AOK;
+            m_vm_state.is_running = true;
         }
 
     public:
-        /// @brief 获取所有通用寄存器
-        /// @return 所有通用寄存器的引用
-        std::array<DWORD, RegisterEnum::GeneralRegister::GRCOUNT> &get_general_registers()
+        /// @brief 获取虚拟机的状态
+        /// @return 虚拟机状态的引用
+        VMState &get_vm_state()
         {
-            return m_general_registers;
+            return m_vm_state;
         }
 
-        /// @brief 获取所有标志寄存器
-        /// @return 所有标志寄存器的引用
-        std::array<bool, RegisterEnum::StatusRegister::SRCOUNT> &get_status_registers()
+        /// @brief 获取程序的数据
+        /// @return 程序数据的引用
+        ProgramData &get_program_data()
         {
-            return m_status_registers;
+            return m_program_data;
         }
 
-        /// @brief 获取所有指令
-        /// @return 所有指令的引用
-        std::vector<Instruction> &get_instructions()
+        /// @brief 获取运行时的数据
+        /// @return 运行时数据的引用
+        ISData &get_internal_storage_data()
         {
-            return m_instructions;
-        }
-
-        /// @brief 获取当前指令索引
-        /// @return 当前指令索引的引用
-        size_t &get_current_instruction_index()
-        {
-            return m_current_instruction_index;
-        }
-
-        /// @brief 获取异常
-        /// @return 异常的引用
-        ExceptionEnum::Exception &get_exception()
-        {
-            return m_exception;
-        }
-
-        /// @brief 获取是否正在运行
-        /// @return 是否正在运行的引用
-        bool &get_is_running()
-        {
-            return m_is_running;
+            return m_internal_storage_data;
         }
 
     public:
@@ -259,7 +536,7 @@ namespace svm
         /// @param end 结束符，默认为\n
         virtual void print_gregister(RegisterEnum::GeneralRegister reg, std::string end = "\n")
         {
-            std::cout << get_gregister_name(reg) << ":" << m_general_registers.at(reg) << end;
+            std::cout << get_gregister_name(reg) << ":" << m_vm_state.general_registers.at(reg) << end;
         }
 
         /// @brief 打印所有通用寄存器
@@ -287,7 +564,7 @@ namespace svm
         /// @param end 结束符，默认为\n
         virtual void print_sregister(RegisterEnum::StatusRegister reg, std::string end = "\n")
         {
-            std::cout << get_sregister_name(reg) << ":" << m_status_registers.at(reg) << end;
+            std::cout << get_sregister_name(reg) << ":" << m_vm_state.status_registers.at(reg) << end;
         }
 
         /// @brief 打印所有标志寄存器
@@ -336,9 +613,9 @@ namespace svm
         virtual void print_all_instructions()
         {
             print_split_line();
-            for (size_t i = 0; i < m_instructions.size(); i++)
+            for (size_t i = 0; i < m_program_data.instructions.size(); i++)
             {
-                print_instruction(m_instructions.at(i));
+                print_instruction(m_program_data.instructions.at(i));
             }
         }
 
