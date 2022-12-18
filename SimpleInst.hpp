@@ -22,11 +22,72 @@ namespace svm
             /// @brief 移动寄存器的值到另一个寄存器
             MOVRR,
 
-            // 直接终止虚拟机运行
+            /// @brief 直接终止虚拟机运行
             HLT,
 
-            /// @brief 系统调用
+            // 系统调用
+            // AX为调用号
+            // 返回值会从AX开始覆盖
             SYSCALL,
+
+            /// @brief 指令总数
+            CMDCOUNT,
+        };
+
+        /// @brief 系统调用号
+        enum SystemCallNumber
+        {
+            // 打印字符
+            // BX为输出目标，参见SystemEnum
+            // CX为要打印的字符
+            // 如果BX为FILE，则DX为文件句柄
+            PRINT_CHAR = 0,
+
+            // 打印字符串
+            // BX为输出目标，参见SystemEnum
+            // CX为要打印的字符串的首地址，以\0结束
+            // 如果BX为FILE，则DX为文件句柄
+            PRINT_STRING,
+
+            // 扫描字符
+            // BX为输入源，参见SystemEnum
+            // 如果BX为FILE，则CX为文件句柄
+            // AX为返回的字符
+            SCAN_CHAR,
+
+            // 扫描字符串
+            // BX为输入源，参见SystemEnum
+            // 如果BX为FILE，则CX为文件句柄
+            // AX为返回的字符串缓冲区首地址，以\0结尾
+            SCAN_STRING,
+
+            // 退出程序，结束虚拟机
+            // BX为返回值，参见SystemEnum
+            // SUCCESS为程序成功结束
+            // FAILURE为程序错误
+            EXIT,
+
+            /// @brief 指令总数
+            SCCOUNT,
+        };
+
+        /// @brief 系统枚举
+        enum SystemEnum
+        {
+            /// @brief 成功时
+            SUCCESS = 0,
+
+            /// @brief 失败时
+            FAILURE,
+
+            /// @brief 标准输入输出
+            STDIO,
+
+            /// @brief 文件
+            FILE,
+
+            /// @brief 枚举总数
+            SECOUNT,
         };
     } // namespace InstEnum
 
@@ -116,23 +177,61 @@ namespace svm
     struct Instruction
     {
         /// @brief 指令名
-        CommandEnum::Command command;
+        CommandEnum::Command command = CommandEnum::Command::NOP;
         /// @brief 寄存器1
-        RegisterEnum::GeneralRegister register1;
+        RegisterEnum::GeneralRegister register1 = RegisterEnum::GeneralRegister::NONE;
         /// @brief 寄存器2
-        RegisterEnum::GeneralRegister register2;
+        RegisterEnum::GeneralRegister register2 = RegisterEnum::GeneralRegister::NONE;
         /// @brief 操作数1
-        DWORD operand1;
+        DWORD operand1 = 0;
         /// @brief 操作数2
-        DWORD operand2;
+        DWORD operand2 = 0;
 
         /// @brief 构造函数
-        /// @param cmd 指令名，默认为NOP
-        /// @param reg1 寄存器1，默认为NONE
-        /// @param reg2 寄存器2，默认为NONE
-        /// @param opd1 操作数1，默认为0
-        /// @param opd2 操作数2，默认为0
-        Instruction(CommandEnum::Command cmd = CommandEnum::Command::NOP, RegisterEnum::GeneralRegister reg1 = RegisterEnum::GeneralRegister::NONE, RegisterEnum::GeneralRegister reg2 = RegisterEnum::GeneralRegister::NONE, DWORD opd1 = 0, DWORD opd2 = 0) : command(cmd), register1(reg1), register2(reg2), operand1(opd1), operand2(opd2) {}
+        Instruction() {}
+
+        /// @brief 构造函数
+        /// @param cmd 指令名
+        /// @param reg1 寄存器1
+        /// @param reg2 寄存器2
+        /// @param opd1 操作数1
+        /// @param opd2 操作数2
+        Instruction(CommandEnum::Command cmd, RegisterEnum::GeneralRegister reg1, RegisterEnum::GeneralRegister reg2, DWORD opd1, DWORD opd2) : command(cmd), register1(reg1), register2(reg2), operand1(opd1), operand2(opd2) {}
+
+        /// @brief 构造函数
+        /// @param cmd 指令名
+        /// @param reg1 寄存器1
+        /// @param reg2 寄存器2
+        Instruction(CommandEnum::Command cmd, RegisterEnum::GeneralRegister reg1, RegisterEnum::GeneralRegister reg2) : command(cmd), register1(reg1), register2(reg2) {}
+
+        /// @brief 构造函数
+        /// @param cmd 指令名
+        /// @param reg1 寄存器1
+        /// @param opd1 操作数2
+        Instruction(CommandEnum::Command cmd, RegisterEnum::GeneralRegister reg1, DWORD opd1) : command(cmd), register1(reg1), operand1(opd1) {}
+
+        /// @brief 构造函数
+        /// @param cmd 指令名
+        Instruction(CommandEnum::Command cmd) : command(cmd) {}
+
+        /// @brief 构造函数
+        /// @param from 要被赋予的值
+        Instruction(const Instruction &from) { operator=(from); }
+
+        ~Instruction() {}
+
+        /// @brief 赋值函数
+        /// @param from 要被赋予的值
+        /// @return 自身
+        Instruction &operator=(const Instruction &from)
+        {
+            command = from.command;
+            register1 = from.register1;
+            register2 = from.register2;
+            operand1 = from.operand1;
+            operand2 = from.operand2;
+            return *this;
+        }
     };
 
 } // namespace svm
