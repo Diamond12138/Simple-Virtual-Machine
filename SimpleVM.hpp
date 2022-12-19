@@ -107,8 +107,9 @@ namespace svm
         using SelfType = InternalStorageData<TOTAL_CAPACITY, DATA_CAPACITY, STACK_CAPACITY, HEAP_CAPACITY>;
 
     private:
-        /// @brief 虚拟机内存，不够可以加。默认是8KB。
+        /// @brief 虚拟机内存
         std::array<DWORD, TOTAL_CAPACITY> m_internal_storage;
+        /// @brief 栈顶索引
         size_t m_stack_top = 0;
 
     public:
@@ -196,7 +197,7 @@ namespace svm
     {
     public:
         using ISData = InternalStorageData<>;
-
+        
     private:
         /// @brief 虚拟机的状态
         VMState m_vm_state;
@@ -519,113 +520,6 @@ namespace svm
         ISData &get_internal_storage_data()
         {
             return m_internal_storage_data;
-        }
-
-    public:
-        /// @brief 获取通用寄存器名称
-        /// @param reg 寄存器索引
-        /// @return 通用寄存器的名称
-        virtual std::string get_gregister_name(RegisterEnum::GeneralRegister reg)
-        {
-            std::vector<std::string> name_list = {"AX", "BX", "CX", "DX", "EX", "FX", "GX", "HX", "IX", "JX", "KX", "LX", "MX", "NX", "OX", "PX", "QX", "RX", "SX", "TX", "UX", "VX", "WX", "XX", "YX", "ZX", "GRCOUNT", "NONE"};
-            return name_list.at(int(reg));
-        }
-
-        /// @brief 打印通用寄存器
-        /// @param reg 寄存器索引
-        /// @param end 结束符，默认为\n
-        virtual void print_gregister(RegisterEnum::GeneralRegister reg, std::string end = "\n")
-        {
-            std::cout << get_gregister_name(reg) << ":" << m_vm_state.general_registers.at(reg) << end;
-        }
-
-        /// @brief 打印所有通用寄存器
-        /// @param end 结束符，默认为\n
-        virtual void print_all_gregisters(std::string end = "\n")
-        {
-            for (size_t i = 0; i < RegisterEnum::GeneralRegister::GRCOUNT; i++)
-            {
-                print_gregister(RegisterEnum::GeneralRegister(i), "\t");
-            }
-            std::cout << end;
-        }
-
-        /// @brief 获取标志寄存器名称
-        /// @param reg 寄存器索引
-        /// @return 标志寄存器的名称
-        virtual std::string get_sregister_name(RegisterEnum::StatusRegister reg)
-        {
-            std::vector<std::string> name_list = {"ZF", "SF", "SRCOUNT"};
-            return name_list.at(int(reg));
-        }
-
-        /// @brief 打印标志寄存器
-        /// @param reg 寄存器索引
-        /// @param end 结束符，默认为\n
-        virtual void print_sregister(RegisterEnum::StatusRegister reg, std::string end = "\n")
-        {
-            std::cout << get_sregister_name(reg) << ":" << m_vm_state.status_registers.at(reg) << end;
-        }
-
-        /// @brief 打印所有标志寄存器
-        /// @param end 结束符，默认为\n
-        virtual void print_all_sregisters(std::string end = "\n")
-        {
-            for (size_t i = 0; i < RegisterEnum::StatusRegister::SRCOUNT; i++)
-            {
-                print_sregister(RegisterEnum::StatusRegister(i), "\t");
-            }
-            std::cout << end;
-        }
-
-        /// @brief 打印所有寄存器
-        virtual void print_all_registers()
-        {
-            print_split_line();
-            print_all_gregisters("\t");
-            print_all_sregisters("\t");
-            std::cout << std::endl;
-        }
-
-        /// @brief 获取指令名
-        /// @param cmd 指令名
-        /// @return 指令名
-        virtual std::string get_command_name(CommandEnum::Command cmd)
-        {
-            std::vector<std::string> name_list = {"NOP", "MOVRI", "MOVRR", "HLT", "SYSCALL"};
-            return name_list.at(int(cmd));
-        }
-
-        /// @brief 打印指令
-        /// @param inst 要被打印的指令
-        /// @param end 结束符，默认为\n
-        virtual void print_instruction(Instruction inst, std::string end = "\n")
-        {
-            std::cout << get_command_name(inst.command) << "\t"
-                      << get_gregister_name(inst.register1) << "\t"
-                      << get_gregister_name(inst.register2) << "\t"
-                      << inst.operand1 << "\t"
-                      << inst.operand2 << "\t"
-                      << end;
-        }
-
-        /// @brief 打印所有指令
-        virtual void print_all_instructions()
-        {
-            print_split_line();
-            for (size_t i = 0; i < m_program_data.instructions.size(); i++)
-            {
-                print_instruction(m_program_data.instructions.at(i));
-            }
-        }
-
-        /// @brief 打印分割线
-        /// @param count '-'字符总数
-        virtual void print_split_line(size_t count = 20)
-        {
-            for (size_t i = 0; i < 20; i++)
-                std::cout << "-";
-            std::cout << std::endl;
         }
     };
 } // namespace svm

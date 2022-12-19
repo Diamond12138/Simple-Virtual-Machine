@@ -1,0 +1,4 @@
+section text
+MOVRI AX 4
+MOVRI BX 0
+SYSCALL

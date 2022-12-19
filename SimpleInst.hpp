@@ -169,6 +169,11 @@ namespace svm
         };
     } // namespace RegisterEnum
 
+    static const std::vector<std::string> gregister_name_list = {"AX", "BX", "CX", "DX", "EX", "FX", "GX", "HX", "IX", "JX", "KX", "LX", "MX", "NX", "OX", "PX", "QX", "RX", "SX", "TX", "UX", "VX", "WX", "XX", "YX", "ZX", "GRCOUNT", "NONE"};
+    static const std::vector<std::string> sregister_name_list = {"ZF", "SF", "SRCOUNT"};
+    static const std::vector<std::string> command_name_list = {"NOP", "MOVRI", "MOVRR", "HLT", "SYSCALL", "CMDCOUNT"};
+    // SystemCallNumber和SystemEnum中的内容会被作为包含文件的宏定义
+
     // 四字类型，即长整数（long）
     // 本虚拟机的不论是寄存器还是操作数，都是这个类型
     using DWORD = unsigned long;
