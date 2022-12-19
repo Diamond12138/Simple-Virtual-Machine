@@ -1,38 +1,26 @@
 #include <iostream>
-#include "SimpleVM.hpp"
+#include "SimpleEXE.hpp"
 
 int main(int argc, char *argv[])
 {
+    /*std::vector<std::vector<std::string>> program =
+        {
+            {"MOV", "AX", "4"},
+            {"MOV", "BX", "0"},
+            {"SYSCALL"},
+        };
+    svm::EXEGenerator generator;
+    generator.generate(std::vector<std::vector<std::string>>(), program, "test.sexe");*/
+
     svm::SimpleVM vm;
-    std::vector<svm::Instruction> program =
-        {
-            svm::Instruction(svm::CommandEnum::Command::MOVRI, svm::RegisterEnum::GeneralRegister::AX, svm::CommandEnum::SystemCallNumber::PRINT_STRING),
-            svm::Instruction(svm::CommandEnum::Command::MOVRI, svm::RegisterEnum::GeneralRegister::BX, svm::CommandEnum::SystemEnum::STDIO),
-            svm::Instruction(svm::CommandEnum::Command::MOVRI, svm::RegisterEnum::GeneralRegister::CX, 0),
-            svm::Instruction(svm::CommandEnum::Command::SYSCALL),
-            svm::Instruction(svm::CommandEnum::Command::MOVRI, svm::RegisterEnum::GeneralRegister::AX, svm::CommandEnum::SystemCallNumber::EXIT),
-            svm::Instruction(svm::CommandEnum::Command::MOVRI, svm::RegisterEnum::GeneralRegister::BX, 0),
-            svm::Instruction(svm::CommandEnum::Command::SYSCALL),
-        };
-    std::vector<svm::DWORD> data =
-        {
-            'H',
-            'e',
-            'l',
-            'l',
-            'o',
-            ' ',
-            'W',
-            'o',
-            'r',
-            'l',
-            'd',
-            '!',
-            '\n',
-            '\0',
-        };
-    vm.load_program(svm::ProgramData(program, data));
-    vm.run();
-    vm.print_all_instructions();
+    svm::EXEParser parser;
+    bool success = parser.parse("test.sexe");
+    std::cout << success << std::endl;
+    if (success)
+    {
+        vm.load_program(parser.get_program());
+        vm.run();
+        print_all_instructions(vm.get_program_data());
+    }
     return 0;
 }
